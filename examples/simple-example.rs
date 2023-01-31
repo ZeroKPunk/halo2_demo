@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
-use group::ff::Field;
-use halo2_proofs::{
+use halo2_proofs_PSE::{
+    arithmetic::FieldExt,
     circuit::{AssignedCell, Chip, Layouter, Region, SimpleFloorPlanner, Value},
     plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance, Selector},
     poly::Rotation,
@@ -9,7 +9,7 @@ use halo2_proofs::{
 
 // This Code is copy from Halo2 example
 // ANCHOR: instructions
-trait NumericInstructions<F: Field>: Chip<F> {
+trait NumericInstructions<F: FieldExt>: Chip<F> {
     /// Variable representing a number.
     type Num;
 
@@ -40,7 +40,7 @@ trait NumericInstructions<F: Field>: Chip<F> {
 // ANCHOR: chip
 /// The chip that will implement our instructions! Chips store their own
 /// config, as well as type markers if necessary.
-struct FieldChip<F: Field> {
+struct FieldChip<F: FieldExt> {
     config: FieldConfig,
     _marker: PhantomData<F>,
 }
@@ -66,7 +66,7 @@ struct FieldConfig {
     s_mul: Selector,
 }
 
-impl<F: Field> FieldChip<F> {
+impl<F: FieldExt> FieldChip<F> {
     fn construct(config: <Self as Chip<F>>::Config) -> Self {
         Self {
             config,
@@ -127,7 +127,7 @@ impl<F: Field> FieldChip<F> {
 // ANCHOR_END: chip-config
 
 // ANCHOR: chip-impl
-impl<F: Field> Chip<F> for FieldChip<F> {
+impl<F: FieldExt> Chip<F> for FieldChip<F> {
     type Config = FieldConfig;
     type Loaded = ();
 
@@ -144,9 +144,9 @@ impl<F: Field> Chip<F> for FieldChip<F> {
 // ANCHOR: instructions-impl
 /// A variable representing a number.
 #[derive(Clone)]
-struct Number<F: Field>(AssignedCell<F, F>);
+struct Number<F: FieldExt>(AssignedCell<F, F>);
 
-impl<F: Field> NumericInstructions<F> for FieldChip<F> {
+impl<F: FieldExt> NumericInstructions<F> for FieldChip<F> {
     type Num = Number<F>;
 
     fn load_private(
@@ -239,13 +239,13 @@ impl<F: Field> NumericInstructions<F> for FieldChip<F> {
 /// they won't have any value during key generation. During proving, if any of these
 /// were `None` we would get an error.
 #[derive(Default)]
-struct MyCircuit<F: Field> {
+struct MyCircuit<F: FieldExt> {
     constant: F,
     a: Value<F>,
     b: Value<F>,
 }
 
-impl<F: Field> Circuit<F> for MyCircuit<F> {
+impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
     // Since we are using a single chip for everything, we can just reuse its config.
     type Config = FieldConfig;
     type FloorPlanner = SimpleFloorPlanner;
@@ -303,9 +303,13 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
 }
 // ANCHOR_END: circuit
 
-fn main() {
-    use halo2_proofs::{dev::MockProver, pasta::Fp};
+#[test]
+fn dddd() {
+}
 
+fn main() {
+    use halo2_proofs_PSE::{dev::MockProver};
+    use halo2curves::pasta::Fp;
     // ANCHOR: test-circuit
     // The number of rows in our circuit cannot exceed 2^k. Since our example
     // circuit is very small, we can pick a very small value here.
@@ -336,5 +340,6 @@ fn main() {
     public_inputs[0] += Fp::one();
     let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
     assert!(prover.verify().is_err());
+    
     // ANCHOR_END: test-circuit
 }
