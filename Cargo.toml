@@ -1,12 +1,13 @@
 [package]
 name = "halo2_demo"
 version = "0.1.0"
-edition = "2022"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 # halo2_proofs = { git = "https://github.com/zcash/halo2.git" }
 halo2_proofs_PSE = { package = "halo2_proofs", git = "https://github.com/privacy-scaling-explorations/halo2", tag = "v2023_01_20" }
-halo2curves= { git = 'https://github.com/privacy-scaling-explorations/halo2curves.git', tag = "0.3.1" }
+# halo2curves = { git = 'https://github.com/privacy-scaling-explorations/halo2curves.git', tag = "0.3.1" }
+halo2curves_PSE = { package = "halo2curves", git = 'https://github.com/privacy-scaling-explorations/halo2curves.git', tag = "0.3.1" }
 group = "0.13"

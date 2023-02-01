@@ -309,7 +309,7 @@ fn dddd() {
 
 fn main() {
     use halo2_proofs_PSE::{dev::MockProver};
-    use halo2curves::pasta::Fp;
+    use halo2curves_PSE::pasta::Fp;
     // ANCHOR: test-circuit
     // The number of rows in our circuit cannot exceed 2^k. Since our example
     // circuit is very small, we can pick a very small value here.
@@ -318,6 +318,7 @@ fn main() {
     // Prepare the private and public inputs to the circuit!
     let constant = Fp::from(7);
     let a = Fp::from(2);
+    println!("a FP {:?}", a);
     let b = Fp::from(3);
     let c = constant * a.square() * b.square();
 
