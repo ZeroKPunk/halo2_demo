@@ -1,8 +1,7 @@
-
 // Ported from https://github.com/icemelon/halo2-tutorial/blob/master/src/example1.rs
-use std::{marker::PhantomData};
+use std::marker::PhantomData;
 
-use halo2_proofs_PSE::{
+use halo2_proofs::{
     arithmetic::FieldExt,
     circuit::{AssignedCell, Layouter, SimpleFloorPlanner, Value},
     plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Instance, Selector},
@@ -36,9 +35,7 @@ impl<F: FieldExt> FiboChip<F> {
         }
     }
 
-    fn configure(
-        meta: &mut ConstraintSystem<F>,
-    ) -> FiboConfig {
+    fn configure(meta: &mut ConstraintSystem<F>) -> FiboConfig {
         // create columns
         let a = meta.advice_column();
         let b = meta.advice_column();
@@ -61,9 +58,7 @@ impl<F: FieldExt> FiboChip<F> {
             vec![s * (lhs + rhs - out)]
         });
 
-        FiboConfig {
-            a, b, c, i, s,
-        }
+        FiboConfig { a, b, c, i, s }
     }
 
     fn load_first_row(
@@ -79,26 +74,32 @@ impl<F: FieldExt> FiboChip<F> {
                 // enable the selector
                 self.config.s.enable(&mut region, 0)?;
 
-                let a_num = region.assign_advice(
-                    || "a",
-                    self.config.a, // column a
-                    0, // rotation
-                    || a,
-                ).map(Number)?;
+                let a_num = region
+                    .assign_advice(
+                        || "a",
+                        self.config.a, // column a
+                        0,             // rotation
+                        || a,
+                    )
+                    .map(Number)?;
 
-                let b_num = region.assign_advice(
-                    || "b",
-                    self.config.b, // column b
-                    0, // rotation
-                    || b,
-                ).map(Number)?;
+                let b_num = region
+                    .assign_advice(
+                        || "b",
+                        self.config.b, // column b
+                        0,             // rotation
+                        || b,
+                    )
+                    .map(Number)?;
 
-                let c_num = region.assign_advice(
-                    || "c",
-                    self.config.c, // column c
-                    0, // rotation
-                    || a + b,
-                ).map(Number)?;
+                let c_num = region
+                    .assign_advice(
+                        || "c",
+                        self.config.c, // column c
+                        0,             // rotation
+                        || a + b,
+                    )
+                    .map(Number)?;
 
                 Ok((a_num, b_num, c_num))
             },
@@ -122,12 +123,9 @@ impl<F: FieldExt> FiboChip<F> {
                 b.0.copy_advice(|| "b", &mut region, self.config.b, 0)?;
                 let c = a.0.value().and_then(|a| b.0.value().map(|b| *a + *b));
 
-                region.assign_advice(
-                    || "c",
-                    self.config.c,
-                    0,
-                    || c,
-                ).map(Number)
+                region
+                    .assign_advice(|| "c", self.config.c, 0, || c)
+                    .map(Number)
             },
         )
     }
@@ -164,20 +162,13 @@ impl<F: FieldExt> Circuit<F> for FiboCircuit<F> {
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<F>
+        mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let chip = FiboChip::construct(config);
-        let (_, mut b, mut c) = chip.load_first_row(
-            layouter.namespace(|| "first row"),
-            self.a,
-            self.b,
-        )?;
+        let (_, mut b, mut c) =
+            chip.load_first_row(layouter.namespace(|| "first row"), self.a, self.b)?;
         for _ in 3..self.num {
-            let new_c = chip.load_row(
-                layouter.namespace(|| "row"),
-                &b,
-                &c,
-            )?;
+            let new_c = chip.load_row(layouter.namespace(|| "row"), &b, &c)?;
             b = c;
             c = new_c;
         }
@@ -197,8 +188,8 @@ fn get_fibo_seq(a: u64, b: u64, num: usize) -> Vec<u64> {
 }
 
 fn main() {
-    use halo2_proofs_PSE::{dev::MockProver};
-    use halo2curves_PSE::pasta::Fp;
+    use halo2_proofs::dev::MockProver;
+    use halo2curves::pasta::Fp;
 
     // Prepare the private and public inputs to the circuit!
     let num = 12;

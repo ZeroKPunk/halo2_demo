@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use halo2_proofs_PSE::{
+use halo2_proofs::{
     arithmetic::FieldExt,
     circuit::{AssignedCell, Chip, Layouter, Region, SimpleFloorPlanner, Value},
     plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance, Selector},
@@ -304,12 +304,11 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
 // ANCHOR_END: circuit
 
 #[test]
-fn dddd() {
-}
+fn dddd() {}
 
 fn main() {
-    use halo2_proofs_PSE::{dev::MockProver};
-    use halo2curves_PSE::pasta::Fp;
+    use halo2_proofs::dev::MockProver;
+    use halo2curves::pasta::Fp;
     // ANCHOR: test-circuit
     // The number of rows in our circuit cannot exceed 2^k. Since our example
     // circuit is very small, we can pick a very small value here.
@@ -341,6 +340,6 @@ fn main() {
     public_inputs[0] += Fp::one();
     let prover = MockProver::run(k, &circuit, vec![public_inputs]).unwrap();
     assert!(prover.verify().is_err());
-    
+
     // ANCHOR_END: test-circuit
 }

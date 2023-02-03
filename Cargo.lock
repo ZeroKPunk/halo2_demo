@@ -215,6 +215,7 @@ dependencies = [
  "group 0.13.0",
  "halo2_proofs",
  "halo2curves",
+ "rand_core",
 ]
 
 [[package]]
