@@ -776,9 +776,9 @@ impl PaddingGadget {
 mod test {
   #![allow(unused_imports)]
 
+  use crate::{operation::*, serde::Row, test_utils::*};
+
   use super::*;
-  // use crate::{operation::*, serde::Row, test_utils::*};
-  use halo2curves::pasta::Fp;
   use halo2_proofs::{
       circuit::{Cell, Region, SimpleFloorPlanner},
       dev::{MockProver, VerifyFailure},
@@ -867,7 +867,7 @@ mod test {
       let k = 4;
       let rng = OsRng;
       let circuit = NullCircuit {
-          root: Fp::random(rng),
+          root: rand_fp(),
           blocks: vec![2, 3, 4],
       };
 
@@ -1001,9 +1001,8 @@ mod test {
   #[test]
   fn layer_multi() {
       let k = 4;
-      let rng = OsRng;
       let circuit = MultiOpCircuit {
-          root: Fp::random(rng),
+          root: rand_fp(),
           blocks: vec![(1, 1), (1, 2), (2, 2)],
       };
 

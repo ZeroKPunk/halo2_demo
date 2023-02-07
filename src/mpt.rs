@@ -60,7 +60,7 @@
 #![allow(clippy::map_identity)]
 
 use super::{CtrlTransitionKind, HashType};
-use crate::mpt_circuit::operation::{MPTPath, SingleOp};
+use crate::operation::{MPTPath, SingleOp};
 use halo2_proofs::{
     arithmetic::{Field, FieldExt},
     circuit::{Chip, Layouter, Region, Value},
@@ -1121,4 +1121,87 @@ impl<'d, Fp: FieldExt> OpChip<'d, Fp> {
 
         Ok(offset + 1)
     }
+}
+
+#[cfg(test)]
+mod test {
+  #![allow(unused_imports)]
+  use super::*;
+  use crate::{serde::Row, test_utils::*};
+  use halo2_proofs::{
+      circuit::{Cell, Region, SimpleFloorPlanner},
+      dev::{MockProver, VerifyFailure},
+      plonk::{Circuit, Expression},
+  };
+
+  use super::MPTOpConfig;
+
+  const MAX_PATH_DEPTH: usize = 16;
+  const MAX_KEY: usize = 2_usize.pow(MAX_PATH_DEPTH as u32);
+
+  impl MPTOpConfig {
+    /// assign all required cols directly
+    pub fn create(meta: &mut ConstraintSystem<Fp>) -> Self {
+      Self {
+        s_row: meta.complex_selector(),
+        s_enable: meta.advice_column(),
+        ctrl_type: meta.advice_column(),
+        s_ctrl_type: [(); HASH_TYPE_CNT].map(|_| meta.advice_column()),
+        s_hash_match_ctrl: [(); 2].map(|_| meta.advice_column()),
+        s_hash_match_ctrl_aux: [(); 2].map(|_| meta.advice_column()),
+        s_path: meta.advice_column(),
+        sibling: meta.advice_column(),
+        depth: meta.advice_column(),
+        acc_key: meta.advice_column(),
+        path: meta.advice_column(),
+        old_hash_type: meta.advice_column(),
+        new_hash_type: meta.advice_column(),
+        old_val: meta.advice_column(),
+        new_val: meta.advice_column(),
+        key_aux: meta.advice_column(),
+        hash_table: HashTable::configure_create(meta),
+        tables: MPTOpTables::configure_create(meta),
+      }
+    }
+
+    pub fn flush_row(&self, region: &mut Region<'_, Fp>, offset: usize) -> Result<(), Error> {
+      for rand_flush_col in [
+                self.s_path,
+                self.ctrl_type,
+                self.depth,
+                self.sibling,
+                self.key_aux,
+                self.acc_key,
+                self.path,
+                self.old_hash_type,
+                self.new_hash_type,
+                self.old_val,
+                self.new_val,
+            ] {
+                region.assign_advice(
+                    || "rand flushing",
+                    rand_flush_col,
+                    offset,
+                    || Value::known(rand_fp()),
+                )?;
+            }
+
+            for zero_flush_col in [self.s_enable]
+                .into_iter()
+                .chain(self.s_ctrl_type)
+                .chain(self.s_hash_match_ctrl)
+                .chain(self.s_hash_match_ctrl_aux)
+            {
+                region.assign_advice(
+                    || "zero flushing",
+                    zero_flush_col,
+                    offset,
+                    || Value::known(Fp::zero()),
+                )?;
+            }
+
+            Ok(())
+    }
+  }
+
 }

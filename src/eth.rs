@@ -34,7 +34,7 @@
 
 use super::mpt;
 use super::CtrlTransitionKind;
-use crate::mpt_circuit::operation::{Account, AccountOp, KeyValue};
+use crate::operation::{Account, AccountOp, KeyValue};
 use halo2_proofs::{
     arithmetic::FieldExt,
     circuit::{Chip, Region, Value},
