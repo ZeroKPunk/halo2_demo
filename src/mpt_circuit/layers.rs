@@ -143,6 +143,7 @@ impl LayerGadget {
           let series_delta = meta.query_advice(series, Rotation::cur())
               - meta.query_advice(series, Rotation::prev());
           // delta ∈ {0, 1}
+          // 
           vec![sel * (Expression::Constant(Fp::one()) - series_delta.clone()) * series_delta]
       });
 
@@ -948,18 +949,24 @@ mod test {
                       let block_start = start;
                       let (op0, op1) = *rows;
                       config
-                          .layer
-                          .pace_op(&mut region, start, (last_op, 0), op0)?;
-                      config.padding0.padding(&mut region, start, op0)?;
+                        .layer
+                        .pace_op(&mut region, start, (last_op, 0), op0)?;
+                      config
+                        .padding0
+                        .padding(&mut region, start, op0)?;
                       last_op = 0;
                       start += op0;
                       config
                           .layer
                           .pace_op(&mut region, start, (last_op, 2), op1)?;
-                      config.padding1.padding(&mut region, start, op1)?;
+                      config
+                        .padding1
+                        .padding(&mut region, start, op1)?;
                       last_op = 2;
                       start += op1;
-                      config.layer.complete_block(
+                      config
+                        .layer
+                        .complete_block(
                           &mut region,
                           block_start,
                           index + 1,
