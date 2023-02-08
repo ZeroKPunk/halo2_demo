@@ -3,8 +3,7 @@
 #![allow(clippy::derive_hash_xor_eq)]
 
 use super::{eth, serde, HashType};
-// use crate::hash::Hashable;
-use hash_circuit::hash::Hashable;
+use crate::hash::Hashable;
 use halo2_proofs::arithmetic::FieldExt;
 use num_bigint::BigUint;
 use std::cmp::Ordering;
@@ -1024,5 +1023,91 @@ where
             }
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{rand_bytes_array, rand_gen, Fp};
+    use halo2_proofs::halo2curves::group::ff::{Field, PrimeField};
+
+    impl<Fp: FieldExt> SingleOp<Fp> {
+        /// create an fully random update operation with leafs customable
+        pub fn create_rand_op(
+            layers: usize,
+            leafs: Option<(Fp, Fp)>,
+            key: Option<Fp>,
+            hasher: impl FnMut(&Fp, &Fp) -> Fp + Clone,
+        ) -> Self {
+            let siblings: Vec<Fp> = (0..layers)
+                .map(|_| Fp::random(rand_gen([101u8; 32])))
+                .collect();
+            let key = key.unwrap_or_else(|| Fp::random(rand_gen([99u8; 32])));
+            let leafs = leafs.unwrap_or_else(|| {
+                (
+                    Fp::random(rand_gen([102u8; 32])),
+                    Fp::random(rand_gen([103u8; 32])),
+                )
+            });
+            Self::create_update_op_with_hasher(layers, &siblings, key, leafs, hasher)
+        }
+    }
+
+    impl<Fp: FieldExt> KeyValue<Fp> {
+        /// create an fully random k/v
+        pub fn create_rand(mut hasher: impl FnMut(&Fp, &Fp) -> Fp + Clone) -> Self {
+            let a = Fp::from_u128(u128::from_be_bytes(rand_bytes_array::<16>()));
+            let b = Fp::from_u128(u128::from_be_bytes(rand_bytes_array::<16>()));
+            let h = hasher(&a, &b);
+
+            Self { data: (a, b, h) }
+        }
+    }
+
+    fn decompose<Fp: FieldExt>(inp: Fp, l: usize) -> (Vec<bool>, Fp) {
+        let mut ret = Vec::new();
+        let mut tested_key = inp;
+        let invert_2 = Fp::one().double().invert().unwrap();
+        for _ in 0..l {
+            if tested_key.is_odd().unwrap_u8() == 1 {
+                tested_key = tested_key * invert_2 - invert_2;
+                ret.push(true);
+            } else {
+                tested_key *= invert_2;
+                ret.push(false);
+            }
+        }
+        (ret, tested_key)
+    }
+
+    fn recover<Fp: FieldExt>(path: &[bool], res: Fp) -> Fp {
+        let mut mask = Fp::one();
+        let mut ret = Fp::zero();
+
+        for b in path {
+            ret += if *b { mask } else { Fp::zero() };
+            mask = mask.double();
+        }
+
+        ret + res * mask
+    }
+
+    #[test]
+    fn path_decomposing() {
+        let test1 = Fp::from(75u64);
+        let ret1 = decompose(test1, 4);
+        assert_eq!(ret1.0, vec![true, true, false, true]);
+        assert_eq!(ret1.1, Fp::from(4u64));
+
+        let test2 = Fp::from(16203805u64);
+        let ret2 = decompose(test2, 22);
+        assert_eq!(recover(&ret2.0, ret2.1), test2);
+
+        for _ in 0..1000 {
+            let test = Fp::random(rand_gen([101u8; 32]));
+            let ret = decompose(test, 22);
+            assert_eq!(recover(&ret.0, ret.1), test);
+        }
     }
 }

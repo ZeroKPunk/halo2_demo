@@ -191,24 +191,24 @@ impl MPTOpTables {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct HashTable(pub [Column<Advice>; 4]);
+pub(crate) struct HashTable(pub [Column<Advice>; 5]);
 
 impl HashTable {
     pub fn configure_create<Fp: Field>(meta: &mut ConstraintSystem<Fp>) -> Self {
-        Self([0; 4].map(|_| meta.advice_column()))
+        Self([0; 5].map(|_| meta.advice_column()))
     }
 
     pub fn configure_assign(cols: &[Column<Advice>]) -> Self {
-        Self([cols[0], cols[1], cols[2], cols[3]])
+        Self([cols[0], cols[1], cols[2], cols[3], cols[4]])
     }
 
-    pub fn commitment_index(&self) -> [usize; 4] {
+    pub fn commitment_index(&self) -> [usize; 5] {
         self.0.map(|col| col.index())
     }
 
-    pub fn build_lookup<'d, Fp: FieldExt>(
+    pub fn build_lookup<Fp: FieldExt>(
         &self,
-        meta: &mut VirtualCells<'d, Fp>,
+        meta: &mut VirtualCells<'_, Fp>,
         enable: Expression<Fp>,
         fst: Expression<Fp>,
         snd: Expression<Fp>,
@@ -223,36 +223,39 @@ impl HashTable {
                 enable.clone() * fst,
                 meta.query_advice(self.0[1], Rotation::cur()),
             ),
-            (enable * snd, meta.query_advice(self.0[2], Rotation::cur())),
             (
-                Expression::Constant(Fp::zero()),
+                enable.clone() * snd,
+                meta.query_advice(self.0[2], Rotation::cur()),
+            ),
+            (
+                enable * Expression::Constant(Fp::zero()),
                 meta.query_advice(self.0[3], Rotation::cur()),
             ),
+            // TODO: also lookup from `self.0[4]` after https://github.com/scroll-tech/mpt-circuit/issues/9
+            // has been resolved
         ]
     }
 
     /// a helper entry to fill hash table with specified rows, use padding record
     /// when hashing_records is not enough
-    pub fn fill_with_paddings<'d, Fp: FieldExt>(
+    pub fn dev_fill_with_paddings<'d, Fp: FieldExt>(
         &self,
         layouter: &mut impl Layouter<Fp>,
         hashing_records: impl Iterator<Item = &'d (Fp, Fp, Fp)> + Clone,
         padding: (Fp, Fp, Fp),
         filled_rows: usize,
     ) -> Result<(), Error> {
-        let paddings = [padding];
-
-        self.fill(
+        self.dev_fill(
             layouter,
             hashing_records
                 .map(|i| i) //shrink the lifetime from 'd
-                .chain(paddings.iter().cycle())
+                .chain(std::iter::repeat(&padding))
                 .take(filled_rows),
         )
     }
 
-    /// a helper entry to fill hash table
-    pub fn fill<'d, Fp: FieldExt>(
+    /// a helper entry to fill hash table, only for dev (in using cases)
+    pub fn dev_fill<'d, Fp: FieldExt>(
         &self,
         layouter: &mut impl Layouter<Fp>,
         hashing_records: impl Iterator<Item = &'d (Fp, Fp, Fp)> + Clone,
@@ -283,6 +286,13 @@ impl HashTable {
                             self.0[3],
                             offset,
                             || Value::known(Fp::zero()),
+                        )?;
+
+                        table.assign_advice(
+                            || "heading mark",
+                            self.0[4],
+                            offset,
+                            || Value::known(Fp::one()),
                         )?;
 
                         Ok(())
@@ -774,6 +784,12 @@ impl<'d, Fp: FieldExt> PathChip<'d, Fp> {
                 || Value::known(Fp::from(hash_type as u64)),
             )?;
             region.assign_advice(
+                || format!("hash_type {}", hash_type as u32),
+                config.hash_type,
+                offset + index,
+                || Value::known(Fp::from(hash_type as u64)),
+            )?;
+            region.assign_advice(
                 || "sel",
                 config.s_path,
                 offset + index,
@@ -1125,47 +1141,47 @@ impl<'d, Fp: FieldExt> OpChip<'d, Fp> {
 
 #[cfg(test)]
 mod test {
-  #![allow(unused_imports)]
-  use super::*;
-  use crate::{serde::Row, test_utils::*};
-  use halo2_proofs::{
-      circuit::{Cell, Region, SimpleFloorPlanner},
-      dev::{MockProver, VerifyFailure},
-      plonk::{Circuit, Expression},
-  };
+    #![allow(unused_imports)]
 
-  use super::MPTOpConfig;
+    use super::*;
+    use crate::{serde::Row, test_utils::*};
+    use halo2_proofs::{
+        circuit::{Cell, Region, SimpleFloorPlanner},
+        dev::{MockProver, VerifyFailure},
+        plonk::{Circuit, Expression},
+    };
 
-  const MAX_PATH_DEPTH: usize = 16;
-  const MAX_KEY: usize = 2_usize.pow(MAX_PATH_DEPTH as u32);
+    const MAX_PATH_DEPTH: usize = 16;
+    const MAX_KEY: usize = 2_usize.pow(MAX_PATH_DEPTH as u32);
 
-  impl MPTOpConfig {
-    /// assign all required cols directly
-    pub fn create(meta: &mut ConstraintSystem<Fp>) -> Self {
-      Self {
-        s_row: meta.complex_selector(),
-        s_enable: meta.advice_column(),
-        ctrl_type: meta.advice_column(),
-        s_ctrl_type: [(); HASH_TYPE_CNT].map(|_| meta.advice_column()),
-        s_hash_match_ctrl: [(); 2].map(|_| meta.advice_column()),
-        s_hash_match_ctrl_aux: [(); 2].map(|_| meta.advice_column()),
-        s_path: meta.advice_column(),
-        sibling: meta.advice_column(),
-        depth: meta.advice_column(),
-        acc_key: meta.advice_column(),
-        path: meta.advice_column(),
-        old_hash_type: meta.advice_column(),
-        new_hash_type: meta.advice_column(),
-        old_val: meta.advice_column(),
-        new_val: meta.advice_column(),
-        key_aux: meta.advice_column(),
-        hash_table: HashTable::configure_create(meta),
-        tables: MPTOpTables::configure_create(meta),
-      }
-    }
+    impl MPTOpConfig {
+        /// assign all required cols directly
+        pub fn create(meta: &mut ConstraintSystem<Fp>) -> Self {
+            Self {
+                s_row: meta.complex_selector(),
+                s_enable: meta.advice_column(),
+                ctrl_type: meta.advice_column(),
+                s_ctrl_type: [(); HASH_TYPE_CNT].map(|_| meta.advice_column()),
+                s_hash_match_ctrl: [(); 2].map(|_| meta.advice_column()),
+                s_hash_match_ctrl_aux: [(); 2].map(|_| meta.advice_column()),
+                s_path: meta.advice_column(),
+                sibling: meta.advice_column(),
+                depth: meta.advice_column(),
+                acc_key: meta.advice_column(),
+                path: meta.advice_column(),
+                old_hash_type: meta.advice_column(),
+                new_hash_type: meta.advice_column(),
+                old_val: meta.advice_column(),
+                new_val: meta.advice_column(),
+                key_aux: meta.advice_column(),
+                hash_table: HashTable::configure_create(meta),
+                tables: MPTOpTables::configure_create(meta),
+            }
+        }
 
-    pub fn flush_row(&self, region: &mut Region<'_, Fp>, offset: usize) -> Result<(), Error> {
-      for rand_flush_col in [
+        /// simply flush a row with 0 value to avoid gate poisoned / cell error in debug prover,
+        pub fn flush_row(&self, region: &mut Region<'_, Fp>, offset: usize) -> Result<(), Error> {
+            for rand_flush_col in [
                 self.s_path,
                 self.ctrl_type,
                 self.depth,
@@ -1201,7 +1217,573 @@ mod test {
             }
 
             Ok(())
+        }
     }
-  }
 
+    #[derive(Clone, Debug)]
+    struct MPTTestConfig {
+        global: MPTOpConfig,
+        chip: PathChipConfig,
+    }
+
+    // express for a single path block
+    #[derive(Clone)]
+    struct TestPathCircuit<const USE_OLD: bool> {
+        key_immediate: Fp,
+        key_residue: Fp,
+        path: Vec<Fp>,
+        siblings: Vec<Fp>,
+        data: MPTPath<Fp>,
+    }
+
+    impl<const USE_OLD: bool> Circuit<Fp> for TestPathCircuit<USE_OLD> {
+        type Config = MPTTestConfig;
+        type FloorPlanner = SimpleFloorPlanner;
+
+        fn without_witnesses(&self) -> Self {
+            self.clone()
+        }
+
+        fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
+            let g_config = MPTOpConfig::create(meta);
+            let chip = PathChip::configure(meta, &g_config, USE_OLD);
+
+            MPTTestConfig {
+                global: g_config,
+                chip,
+            }
+        }
+
+        fn synthesize(
+            &self,
+            config: Self::Config,
+            mut layouter: impl Layouter<Fp>,
+        ) -> Result<(), Error> {
+            let offset: usize = 1;
+            let chip_cfg = config.chip.clone();
+            let mpt_chip = PathChip::<Fp>::construct(chip_cfg, offset, &self.data, None);
+            layouter.assign_region(
+                || "main",
+                |mut region| {
+                    let config = &config.global;
+                    config.flush_row(&mut region, 0)?;
+                    let mut working_offset = offset;
+                    //enable, flush the whole of working region and ctrl flag
+                    for (index, hash_type) in self.data.hash_types.iter().copied().enumerate() {
+                        config.s_row.enable(&mut region, working_offset + index)?;
+                        config.flush_row(&mut region, working_offset + index)?;
+                        region.assign_advice(
+                            || "enable",
+                            config.s_ctrl_type[hash_type as usize],
+                            working_offset + index,
+                            || Value::known(Fp::one()),
+                        )?;
+                    }
+                    region.assign_advice(
+                        || "enable",
+                        config.s_enable,
+                        working_offset,
+                        || Value::known(Fp::one()),
+                    )?;
+
+                    working_offset += 1;
+                    let next_offset = working_offset + self.siblings.len();
+                    //need to fill some other cols
+                    for (index, offset) in (working_offset..next_offset).enumerate() {
+                        region.assign_advice(
+                            || "enable",
+                            config.s_enable,
+                            offset,
+                            || Value::known(Fp::one()),
+                        )?;
+                        region.assign_advice(
+                            || "sibling",
+                            config.sibling,
+                            offset,
+                            || Value::known(self.siblings[index]),
+                        )?;
+                        region.assign_advice(
+                            || "path",
+                            config.path,
+                            offset,
+                            || Value::known(self.path[index]),
+                        )?;
+                    }
+
+                    for (col, val, tip) in [
+                        (config.s_enable, Fp::one(), "enable"),
+                        (config.path, self.key_residue, "path"),
+                        (config.sibling, Fp::zero(), "sibling"),
+                        (config.key_aux, self.key_immediate, "key"),
+                    ] {
+                        region.assign_advice(|| tip, col, next_offset, || Value::known(val))?;
+                    }
+
+                    let next_offset = next_offset + 1;
+                    let chip_next_offset = mpt_chip.assign(&mut region)?;
+                    assert_eq!(chip_next_offset, next_offset);
+
+                    //also test flush some more rows
+                    for offset in next_offset..(next_offset + 3) {
+                        config.s_row.enable(&mut region, offset)?;
+                        config.flush_row(&mut region, offset)?;
+                    }
+
+                    Ok(())
+                },
+            )?;
+
+            config.global.tables.fill_constant(
+                &mut layouter,
+                TRANSMAP
+                    .iter()
+                    .map(|(a, b)| ([*a as u32, *b as u32, 0], CtrlTransitionKind::Mpt as u32)),
+            )?;
+
+            config
+                .global
+                .hash_table
+                .dev_fill(&mut layouter, self.data.hash_traces.iter())?;
+
+            Ok(())
+        }
+    }
+
+    impl<const USE_OLD: bool> TestPathCircuit<USE_OLD> {
+        //decompose key to path bits, start from smallest, return the
+        //two parts which reside on path and the leaf
+        fn decompose_path(key: u32, len: usize) -> (Vec<bool>, u32) {
+            let mut path_bits = Vec::new();
+            assert!(MAX_PATH_DEPTH >= len, "more siblings than max depth");
+
+            let mut res_path = key;
+
+            for _ in 0..len {
+                let has_bit = (res_path & 1) != 0;
+                path_bits.push(has_bit);
+                res_path /= 2;
+            }
+
+            (path_bits, res_path)
+        }
+
+        fn create_rand(layers: usize) -> Self {
+            let leaf = rand_fp();
+            let mut siblings = Vec::new();
+            for _ in 0..layers {
+                siblings.push(rand_fp());
+            }
+            let key = u32::from_be_bytes(rand_bytes_array()) % MAX_KEY as u32;
+            let (path_bits, rev_path) = Self::decompose_path(key, layers);
+            let data = MPTPath::<Fp>::create_with_hasher(
+                &path_bits,
+                &siblings,
+                Fp::from(key as u64),
+                Some(leaf),
+                mock_hash,
+            );
+            let path: Vec<Fp> = path_bits
+                .into_iter()
+                .map(|not_zero| if not_zero { Fp::one() } else { Fp::zero() })
+                .collect();
+
+            Self {
+                key_immediate: data.key_immediate().unwrap(),
+                key_residue: Fp::from(rev_path as u64),
+                data,
+                path,
+                siblings,
+            }
+        }
+    }
+
+    #[test]
+    fn path_gadget_degrees() {
+        let mut cs: ConstraintSystem<Fp> = Default::default();
+        TestPathCircuit::<true>::configure(&mut cs);
+
+        println!("mpt path gadget degree: {}", cs.degree());
+        assert!(cs.degree() <= 9);
+    }
+
+    #[test]
+    fn single_path() {
+        let k = 5; //at least 32 rows for constant table use many space
+
+        let circuit = TestPathCircuit::<true>::create_rand(3);
+        #[cfg(feature = "print_layout")]
+        print_layout!("layouts/path_layout_old.png", k, &circuit);
+
+        let prover = MockProver::<Fp>::run(k, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+
+        let circuit = TestPathCircuit::<false>::create_rand(3);
+        #[cfg(feature = "print_layout")]
+        print_layout!("layouts/path_layout_new.png", k, &circuit);
+
+        let prover = MockProver::<Fp>::run(k, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[derive(Clone, Debug)]
+    struct OpTestConfig {
+        global: MPTOpConfig,
+        chip: OpChipConfig,
+    }
+
+    // express for a single path block
+    #[derive(Clone)]
+    struct TestOpCircuit {
+        data: SingleOp<Fp>,
+    }
+
+    impl Circuit<Fp> for TestOpCircuit {
+        type Config = OpTestConfig;
+        type FloorPlanner = SimpleFloorPlanner;
+
+        fn without_witnesses(&self) -> Self {
+            self.clone()
+        }
+
+        fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
+            let g_config = MPTOpConfig::create(meta);
+            let chip = OpChip::configure(meta, &g_config);
+
+            OpTestConfig {
+                global: g_config,
+                chip,
+            }
+        }
+
+        fn synthesize(
+            &self,
+            config: Self::Config,
+            mut layouter: impl Layouter<Fp>,
+        ) -> Result<(), Error> {
+            let offset: usize = 1;
+            let chip_cfg = config.chip.clone();
+            let op_chip = OpChip::<Fp>::construct(chip_cfg, offset, &self.data);
+            layouter.assign_region(
+                || "main",
+                |mut region| {
+                    let config = &config.global;
+                    let next_offset = offset + self.data.old.hash_types.len();
+                    //flush working region and ctrl flags
+                    for offset in 0..next_offset {
+                        config.flush_row(&mut region, offset)?;
+                    }
+
+                    //need to fill some other cols
+                    for (index, offset) in (offset..next_offset).enumerate() {
+                        config.s_row.enable(&mut region, offset)?;
+                        region.assign_advice(
+                            || "enable",
+                            config.s_enable,
+                            offset,
+                            || Value::known(Fp::one()),
+                        )?;
+                        region.assign_advice(
+                            || "s_path",
+                            config.s_path,
+                            offset,
+                            || {
+                                Value::known(match self.data.old.hash_types[index] {
+                                    HashType::Empty | HashType::Leaf | HashType::Start => {
+                                        Fp::zero()
+                                    }
+                                    _ => Fp::one(),
+                                })
+                            },
+                        )?;
+                        region.assign_advice(
+                            || "old hash_type",
+                            config.old_hash_type,
+                            offset,
+                            || Value::known(Fp::from(self.data.old.hash_types[index] as u64)),
+                        )?;
+                        region.assign_advice(
+                            || "new hash_type",
+                            config.new_hash_type,
+                            offset,
+                            || Value::known(Fp::from(self.data.new.hash_types[index] as u64)),
+                        )?;
+                    }
+
+                    let chip_next_offset = op_chip.assign(&mut region)?;
+                    assert_eq!(chip_next_offset, next_offset);
+
+                    //also test flush some more rows
+                    for offset in next_offset..(next_offset + 3) {
+                        config.s_row.enable(&mut region, offset)?;
+                        config.flush_row(&mut region, offset)?;
+                    }
+
+                    Ok(())
+                },
+            )?;
+
+            config.global.tables.fill_constant(
+                &mut layouter,
+                OPMAP.iter().map(|(a, b, c)| {
+                    (
+                        [*a as u32, *b as u32, *c as u32],
+                        CtrlTransitionKind::Operation as u32,
+                    )
+                }),
+            )?;
+
+            // op chip now need hash table (for key hash lookup)
+            config.global.hash_table.dev_fill(
+                &mut layouter,
+                self.data
+                    .old
+                    .hash_traces
+                    .iter()
+                    .chain([(Fp::one(), self.data.key, Fp::zero())].iter()), //dummy for key calc
+            )?;
+
+            Ok(())
+        }
+    }
+
+    impl TestOpCircuit {
+        fn from_op(op: SingleOp<Fp>) -> Self {
+            Self { data: op }
+        }
+    }
+
+    #[test]
+    fn op_gadget_degrees() {
+        let mut cs: ConstraintSystem<Fp> = Default::default();
+        TestOpCircuit::configure(&mut cs);
+
+        println!("mpt op gadget degree: {}", cs.degree());
+        assert!(cs.degree() <= 9);
+    }
+
+    lazy_static! {
+
+        static ref DEMOCIRCUIT1: TestOpCircuit = {
+            TestOpCircuit {
+                data: SingleOp::<Fp>{
+                    siblings: Vec::new(),
+                    path: Vec::new(),
+                    key: Fp::from(4u64),
+                    key_residual: Fp::from(4u64),
+                    old: MPTPath::<Fp>{
+                        hash_traces: vec![(Fp::one(), Fp::from(4u64), Fp::zero())],
+                        hash_types: vec![HashType::Start, HashType::Empty],
+                        ..Default::default()
+                    },
+                    new: MPTPath::<Fp> {
+                        hash_types: vec![HashType::Start, HashType::Leaf],
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            }
+        };
+
+        static ref DEMOCIRCUIT2: TestOpCircuit = {
+            TestOpCircuit {
+                data: SingleOp::<Fp>{
+                    siblings: vec![Fp::from(11u64)],
+                    path: vec![Fp::one()],
+                    key: Fp::from(17u64), //0b10001u64
+                    key_residual: Fp::from(8u64),
+                    old: MPTPath::<Fp>{
+                        hash_traces: vec![(Fp::one(), Fp::from(9u64), Fp::zero())],
+                        hash_types: vec![HashType::Start, HashType::LeafExtFinal, HashType::Empty],
+                        ..Default::default()
+                    },
+                    new: MPTPath::<Fp> {
+                        hash_types: vec![HashType::Start, HashType::Middle, HashType::Leaf],
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            }
+        };
+
+        static ref DEMOCIRCUIT3: TestOpCircuit = {
+            TestOpCircuit {
+                data: SingleOp::<Fp>{
+                    siblings: vec![Fp::from(11u64), Fp::zero(), Fp::from(22u64)],
+                    path: vec![Fp::one(), Fp::zero(), Fp::one()],
+                    key: Fp::from(45u64), //0b101101u64
+                    key_residual: Fp::from(5u64),
+                    old: MPTPath::<Fp>{
+                        hash_traces: vec![(Fp::one(), Fp::from(45u64), Fp::zero())],
+                        hash_types: vec![
+                            HashType::Start,
+                            HashType::Middle,
+                            HashType::LeafExt,
+                            HashType::LeafExtFinal,
+                            HashType::Empty,
+                        ],
+                        ..Default::default()
+                    },
+                    new: MPTPath::<Fp> {
+                        hash_types: vec![
+                            HashType::Start,
+                            HashType::Middle,
+                            HashType::Middle,
+                            HashType::Middle,
+                            HashType::Leaf,
+                        ],
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+            }
+        };
+    }
+
+    #[test]
+    fn single_op() {
+        let k = 5; //at least 32 rows for constant table use many space
+
+        #[cfg(feature = "print_layout")]
+        print_layout!("layouts/op_layout.png", k, &*DEMOCIRCUIT3);
+
+        let prover = MockProver::<Fp>::run(k, &*DEMOCIRCUIT3, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+
+        let prover = MockProver::<Fp>::run(k, &*DEMOCIRCUIT2, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+
+        let prover = MockProver::<Fp>::run(k, &*DEMOCIRCUIT1, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[test]
+    fn rand_case_op() {
+        let op = SingleOp::<Fp>::create_rand_op(3, None, None, mock_hash);
+
+        let k = 5;
+        let circuit = TestOpCircuit { data: op };
+        let prover = MockProver::<Fp>::run(k, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[derive(Clone, Debug)]
+    struct GadgetTestConfig {
+        gadget: MPTOpGadget,
+        sel: Selector,
+        free_cols: Vec<Column<Advice>>,
+    }
+
+    // express for a single path block
+    #[derive(Clone, Default)]
+    struct MPTTestCircuit {
+        data: SingleOp<Fp>,
+    }
+
+    impl Circuit<Fp> for MPTTestCircuit {
+        type Config = GadgetTestConfig;
+        type FloorPlanner = SimpleFloorPlanner;
+
+        fn without_witnesses(&self) -> Self {
+            Self::default()
+        }
+
+        fn configure(meta: &mut ConstraintSystem<Fp>) -> Self::Config {
+            let sel = meta.complex_selector();
+            let free_cols: Vec<_> = (0..(8 + //exported
+                MPTOpGadget::min_ctrl_types() +
+                MPTOpGadget::min_free_cols()))
+                .map(|_| meta.advice_column())
+                .collect();
+            let exported_cols = &free_cols[0..8];
+            let op_flag_cols = &free_cols[8..8 + MPTOpGadget::min_ctrl_types()];
+
+            GadgetTestConfig {
+                gadget: MPTOpGadget::configure_simple(
+                    meta,
+                    sel,
+                    exported_cols,
+                    op_flag_cols,
+                    &free_cols[8 + MPTOpGadget::min_ctrl_types()..],
+                    None,
+                ),
+                free_cols,
+                sel,
+            }
+        }
+
+        fn synthesize(
+            &self,
+            config: Self::Config,
+            mut layouter: impl Layouter<Fp>,
+        ) -> Result<(), Error> {
+            config
+                .gadget
+                .tables
+                .fill_constant(&mut layouter, MPTOpGadget::transition_rules())?;
+            config
+                .gadget
+                .hash_table
+                .dev_fill(&mut layouter, self.data.hash_traces())?;
+
+            layouter.assign_region(
+                || "mpt",
+                |mut region| {
+                    //flush all row required by data, just avoid Cell error ...
+                    for offset in 0..(1 + self.data.use_rows()) {
+                        config.free_cols.iter().try_for_each(|col| {
+                            region
+                                .assign_advice(
+                                    || "flushing",
+                                    *col,
+                                    offset,
+                                    || Value::known(Fp::zero()),
+                                )
+                                .map(|_| ())
+                        })?;
+                    }
+
+                    let end = config.gadget.assign(&mut region, 1, &self.data)?;
+                    for offset in 1..end {
+                        config.sel.enable(&mut region, offset)?;
+                    }
+
+                    Ok(())
+                },
+            )?;
+
+            Ok(())
+        }
+    }
+
+    impl From<SingleOp<Fp>> for MPTTestCircuit {
+        fn from(data: SingleOp<Fp>) -> Self {
+            Self { data }
+        }
+    }
+
+    #[test]
+    fn gadget_degrees() {
+        let mut cs: ConstraintSystem<Fp> = Default::default();
+        MPTTestCircuit::configure(&mut cs);
+
+        println!("mpt full gadget degree: {}", cs.degree());
+        assert!(cs.degree() <= 9);
+    }
+
+    #[test]
+    fn rand_case_gadget() {
+        let op = SingleOp::<Fp>::create_rand_op(5, None, None, mock_hash);
+
+        let k = 6;
+        let circuit = MPTTestCircuit::from(op);
+
+        #[cfg(feature = "print_layout")]
+        {
+            let path = "layouts/mptgadget_layout.png";
+            print_layout!(&path, k, &circuit);
+        }
+
+        let prover = MockProver::<Fp>::run(k, &circuit, vec![]).unwrap();
+        assert_eq!(prover.verify(), Ok(()));
+    }
 }

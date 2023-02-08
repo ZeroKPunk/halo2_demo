@@ -14,7 +14,7 @@ pub fn rand_gen(seed: [u8; 32]) -> ChaCha8Rng {
 }
 
 pub fn mock_hash(a: &Fp, b: &Fp) -> Fp {
-  (a + *GAMMA) * (b + *GAMMA)
+    (a + *GAMMA) * (b + *GAMMA)
 }
 
 pub fn rand_bytes(n: usize) -> Vec<u8> {
