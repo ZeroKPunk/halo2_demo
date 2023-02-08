@@ -29,9 +29,9 @@ plotters = "0.3"
 bencher = "0.1"
 subtle = "2"
 
-# [[bin]]
-# name = "integration-test"
-# path = "integration-tests/src/main.rs"
+[[bin]]
+name = "integration-test"
+path = "integration-tests/src/main.rs"
 
 [profile.test]
 opt-level = 3
