@@ -143,7 +143,6 @@ impl LayerGadget {
             let series_delta = meta.query_advice(series, Rotation::cur())
                 - meta.query_advice(series, Rotation::prev());
             // delta ∈ {0, 1}
-            //
             vec![sel * (Expression::Constant(Fp::one()) - series_delta.clone()) * series_delta]
         });
 
@@ -776,16 +775,13 @@ impl PaddingGadget {
 mod test {
     #![allow(unused_imports)]
 
-    use crate::{operation::*, serde::Row, test_utils::*};
-
     use super::*;
+    use crate::{operation::*, serde::Row, test_utils::*};
     use halo2_proofs::{
-        arithmetic::Field,
         circuit::{Cell, Region, SimpleFloorPlanner},
         dev::{MockProver, VerifyFailure},
         plonk::{Circuit, Expression},
     };
-    use rand_core::OsRng;
 
     #[derive(Clone, Debug)]
     struct NullCircuitConfig {
@@ -865,7 +861,6 @@ mod test {
     #[test]
     fn layer_null() {
         let k = 4;
-        let rng = OsRng;
         let circuit = NullCircuit {
             root: rand_fp(),
             blocks: vec![2, 3, 4],
@@ -878,7 +873,7 @@ mod test {
         assert_eq!(prover.verify(), Ok(()));
 
         let circuit = NullCircuit {
-            root: Fp::random(rng),
+            root: rand_fp(),
             blocks: vec![5],
         };
 

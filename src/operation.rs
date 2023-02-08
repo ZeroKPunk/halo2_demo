@@ -1096,12 +1096,15 @@ mod tests {
     #[test]
     fn path_decomposing() {
         let test1 = Fp::from(75u64);
+        // 75(decimal) = 1001011(binary)
         let ret1 = decompose(test1, 4);
         assert_eq!(ret1.0, vec![true, true, false, true]);
         assert_eq!(ret1.1, Fp::from(4u64));
 
         let test2 = Fp::from(16203805u64);
+        // 16203805(decimal) =  11,1101110100000000011101(binary)
         let ret2 = decompose(test2, 22);
+        assert_eq!(ret2.0, vec![true,false,true,true,true,false,false,false,false,false,false,false,false,false,true,false,true,true,true,false,true,true]);
         assert_eq!(recover(&ret2.0, ret2.1), test2);
 
         for _ in 0..1000 {
@@ -1109,5 +1112,20 @@ mod tests {
             let ret = decompose(test, 22);
             assert_eq!(recover(&ret.0, ret.1), test);
         }
+    }
+
+    #[test]
+    fn trance_debug_convert() {
+        let example = r#"{"address":"0xb36feaeaf76c2a33335b73bef9aef7a23d9af1e3","accountKey":"0xf59112e5670628682b1ec72767b1a6153096d47742e1d9455c175a955211e900","accountPath":[{"pathPart":"0xf5","root":"0xab4ef5db245d66748b2cbd6eb7f57ebd8fee61444130233546fcd196a0298706","path":[{"value":"0x26e297ed2c0265392eb4d55ca93464914535a3da6c1a70a5884bbf0048f2bc11","sibling":"0x8251455b38bef426b8c56ad1e5c4b2004d0a57cf8af0aa499329e502f3a5022b"},{"value":"0x08eaa42867286da95ec7cf88e17ee86fdbc158b6c631365eab3f00f20ac7a029","sibling":"0xe582f6c510f1bf05d68badf1284b17ab9b44408e12f7c46b09c9260dd572fa2e"},{"value":"0xfee9e393c454b03ebe8c59988ee4c4a7224fdd133d211f1057131253610aa91d","sibling":"0x0000000000000000000000000000000000000000000000000000000000000000"},{"value":"0x01198505cc61e6be5421ed71bb380cb85f7d77af957c30d9a79478f236c4802b","sibling":"0x0000000000000000000000000000000000000000000000000000000000000000"},{"value":"0xd91419a365920d5a3bd771e9d354abd558d0f9ff429a37d002ebfd122833ea2c","sibling":"0x0000000000000000000000000000000000000000000000000000000000000000"},{"value":"0x6af55a02e1b2435ebbbc58bf8e9b83efc4b4fd10dad2c739ba6be95119781e00","sibling":"0x559653b52296e19fe878d6430dbc748ebcd3046b463aa32689eac16c29702607"},{"value":"0x34a4740b27bec9410f659ec6134d6f7c9c933f35143152c374b125e2bce7ac2a","sibling":"0x0000000000000000000000000000000000000000000000000000000000000000"},{"value":"0x7368c8ebabb8fd55758c492232e6302b66efe9ce03c3eb22e9b7540eb15c8a1c","sibling":"0x0498324f694fc9f300d1600f78e054657dcb9ce620358beba8c1e847a14dc203"}],"leaf":{"value":"0x33c5435c783d711eca3cb21179f8afaf6dd0be8ca0f066d0daace28b17fc281d","sibling":"0xf59112e5670628682b1ec72767b1a6153096d47742e1d9455c175a955211e900"}},{"pathPart":"0xf5","root":"0x04048d2ce5b611be0de990f0c5575a8b82ded0e33f2ba624a823736426ff5d05","path":[{"value":"0xc5f6457f340dd71b3f30227f969df9d219f85f0f85f615d97610e56e5dd3e911","sibling":"0x8251455b38bef426b8c56ad1e5c4b2004d0a57cf8af0aa499329e502f3a5022b"},{"value":"0x21ce60ff0a0d9626c284cbc3c03774d0e4e07c2a900a3e1f16716d120f8a741c","sibling":"0xe582f6c510f1bf05d68badf1284b17ab9b44408e12f7c46b09c9260dd572fa2e"},{"value":"0xd93364b73307c4e85309140e10b36b36dfcaba10d45c2c3b6108493ab1dea520","sibling":"0x0000000000000000000000000000000000000000000000000000000000000000"},{"value":"0xc97d843eac19493e6e1b34e7c425d8943fb412cb71ba0a8344b435c04819ee08","sibling":"0x0000000000000000000000000000000000000000000000000000000000000000"},{"value":"0x5c1745a0c67b60a9d36e163e22afd69fe79d51d10c4e4a2f6a8376c55cbc2d27","sibling":"0x0000000000000000000000000000000000000000000000000000000000000000"},{"value":"0x23560d93412c108a1903015d54cb1239d4d6c9819347af5f735df983c3eb9b24","sibling":"0x559653b52296e19fe878d6430dbc748ebcd3046b463aa32689eac16c29702607"},{"value":"0x9dee92127fa400bfd4e158b546f343c75ca5eab55b8438900a4f35d8eaaa5020","sibling":"0x0000000000000000000000000000000000000000000000000000000000000000"},{"value":"0x2c05e2bb4aa93790418fb89c3bb0eb8030cf7dc178054de03fb225145db3c32e","sibling":"0x0498324f694fc9f300d1600f78e054657dcb9ce620358beba8c1e847a14dc203"}],"leaf":{"value":"0xdc1171e525a47eb17a5042b0d5fee68b08c8f7fe9377be7db8f3a06227ef3327","sibling":"0xf59112e5670628682b1ec72767b1a6153096d47742e1d9455c175a955211e900"}}],"accountUpdate":[{"nonce":1,"balance":"0x0","codeHash":"0x0000000000000000000000000000000000000000000000000000000000000000"},{"nonce":1,"balance":"0x0","codeHash":"0x0000000000000000000000000000000000000000000000000000000000000000"}],"stateKey":"0x6448b64684ee39a823d5fe5fd52431dc81e4817bf2c3ea3cab9e239efbf59820","statePath":[{"pathPart":"0x0","root":"0x0000000000000000000000000000000000000000000000000000000000000000"},{"pathPart":"0x0","root":"0x2b6a9e4dba68659fcc19b9b88240a96b06fa558578ff60317af9406e48621f09","leaf":{"value":"0xc37dd2b463aad7591be6403c921fdc58c12e28469ad81e28d08ad1582210d911","sibling":"0x6448b64684ee39a823d5fe5fd52431dc81e4817bf2c3ea3cab9e239efbf59820"}}],"stateUpdate":[null,{"key":"0x0000000000000000000000000000000000000000000000000000000000000000","value":"0x00000000000000000000000033b5ddf9b5e82bb958eb885f5f241e783a113f18"}]}"#;
+        let trace: serde::SMTTrace = serde_json::from_str(example).unwrap();
+
+        println!("{:?}", trace.state_path[0]);
+        // let parse: SMTPathParse<Fp> = trace.state_path[0].as_ref().unwrap().try_into().unwrap();
+        let parse: SMTPathParse<Fp> = trace.state_path[0].as_ref().unwrap().try_into().unwrap();
+        println!("{:?}", parse.0);
+
+        println!("{:?}", trace.state_path[1]);
+        let parse: SMTPathParse<Fp> = trace.state_path[1].as_ref().unwrap().try_into().unwrap();
+        println!("{:?}", parse.0);
     }
 }
