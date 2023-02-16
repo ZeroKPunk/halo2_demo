@@ -14,7 +14,7 @@ pub struct BlockResult {
 
 fn main() {
     let mut buffer = Vec::new();
-    let mut f = File::open("integration-tests/trace.json").unwrap();
+    let mut f = File::open("zkmpt/integration-tests/trace.json").unwrap();
     f.read_to_end(&mut buffer).unwrap();
 
     let traces: Vec<SMTTrace> = serde_json::from_slice::<BlockResult>(&buffer)
@@ -35,6 +35,7 @@ fn main() {
     );
 
     let final_root = data.final_root();
+    let start_root = data.start_root();
 
     let (circuit, hash_circuit) = match k {
         6 => data.circuits(40),
@@ -52,5 +53,5 @@ fn main() {
     assert_eq!(prover_mpt.verify(), Ok(()));
     // assert_eq!(prover_hash.verify(), Ok(()));
 
-    println!("done, final hash {final_root:?}");
+    println!("done, start hash {start_root:?} final hash {final_root:?}");
 }
